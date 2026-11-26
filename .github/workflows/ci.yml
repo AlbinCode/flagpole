@@ -1,0 +1,114 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  IMAGE: ghcr.io/albincode/flagpole
+
+jobs:
+  test:
+    name: Build and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Test
+        run: >
+          dotnet test --no-build --configuration Release
+          --collect:"XPlat Code Coverage"
+          --results-directory coverage
+          --logger "console;verbosity=normal"
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage/**/coverage.cobertura.xml
+
+  infrastructure:
+    name: Validate and scan infrastructure
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compile Bicep
+        run: az bicep build --file infra/main.bicep --stdout > /dev/null
+
+      # Skylock is my own IaC security scanner: https://github.com/AlbinCode/Skylock
+      - name: Check out Skylock
+        uses: actions/checkout@v4
+        with:
+          repository: AlbinCode/Skylock
+          path: .skylock
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Scan with Skylock
+        run: >
+          dotnet run --project .skylock/src/Skylock.Cli --configuration Release --
+          scan infra --format sarif --output skylock.sarif --fail-on none
+
+      - name: Upload results to code scanning
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: skylock.sarif
+          category: skylock
+
+      - name: Fail on high or critical findings
+        run: >
+          dotnet run --project .skylock/src/Skylock.Cli --configuration Release --no-build --
+          scan infra --fail-on high
+
+  container:
+    name: Build container image
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Pull requests only build the image. Pushes to main also publish it,
+      # tagged with the commit so every deploy can be traced to its source.
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: ${{ github.event_name == 'push' }}
+          tags: |
+            ${{ env.IMAGE }}:${{ github.sha }}
+            ${{ env.IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

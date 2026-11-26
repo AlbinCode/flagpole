@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Flagpole.Api/Flagpole.Api.csproj" />
+    <Project Path="src/Flagpole.Core/Flagpole.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Flagpole.Api.Tests/Flagpole.Api.Tests.csproj" />
+    <Project Path="tests/Flagpole.Core.Tests/Flagpole.Core.Tests.csproj" />
+  </Folder>
+</Solution>
