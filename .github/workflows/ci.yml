@@ -103,7 +103,7 @@ jobs:
       # Pull requests only build the image. Pushes to main also publish it,
       # tagged with the commit so every deploy can be traced to its source.
       - name: Build and push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: ${{ github.event_name == 'push' }}
