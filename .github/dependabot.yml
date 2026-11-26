@@ -4,6 +4,9 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
       dotnet:
         patterns: ["*"]
@@ -13,7 +16,12 @@ updates:
     schedule:
       interval: weekly
 
+  # The image follows the .NET version the app targets, so new major
+  # versions are adopted together with the project files, not by a bot.
   - package-ecosystem: docker
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
